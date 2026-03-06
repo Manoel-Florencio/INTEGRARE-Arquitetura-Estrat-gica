@@ -880,13 +880,20 @@ app.all("/api/*", (req, res) => {
 
 
 // Vite middleware
-if (process.env.NODE_ENV !== "production") {
-  const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
-  app.use(vite.middlewares);
-} else {
-  app.use(express.static("dist"));
-  app.get("*", (req, res) => res.sendFile(path.resolve("dist/index.html")));
-}
+//if (process.env.NODE_ENV !== "production") {
+ // const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
+ // app.use(vite.middlewares);
+//} else {
+ // app.use(express.static("dist"));
+ // app.get("*", (req, res) => res.sendFile(path.resolve("dist/index.html")));
+//}
+
+app.get("/", (req, res) => {
+  res.json({
+    message: "Integrare Materials AI API",
+    status: "online"
+  });
+});
 
 // Error handling middleware
 app.use((err: any, req: any, res: any, next: any) => {
