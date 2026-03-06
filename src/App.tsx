@@ -5,6 +5,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
+const API_URL = import.meta.env.VITE_API_URL || "https://integrare-api.onrender.com";
+
 // --- Types ---
 
 interface Pavimento {
@@ -109,7 +111,7 @@ export default function App() {
   }, [theme]);
   const fetchProjects = async () => {
     try {
-      const res = await fetch("/api/projects");
+      const res = await fetch(`${API_URL}/api/projects`);
       const data = await res.json();
       setProjects(data);
     } catch (err) { showToast("Erro ao carregar projetos", "error"); }
@@ -241,7 +243,7 @@ export default function App() {
       setTimeout(() => setProcessStep("Normalizando dados..."), 800);
       setTimeout(() => setProcessStep("Agrupando materiais..."), 1600);
 
-      const res = await fetch("/api/process", {
+      const res = await fetch(`${API_URL}/api/process`, {
         method: "POST",
         body: formData
       });
@@ -279,7 +281,7 @@ export default function App() {
         return;
       }
       const payload = { ...currentProject, total_processado: stats?.totalLines, total_consolidado: stats?.consolidatedLines, total_duplicatas: stats?.duplicatesFound, processing_time: stats?.processingTime, dados_json: results, pavimentos: pavimentos.map(p => ({ name: p.name })) };
-      const res = await fetch("/api/projects/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const res = await fetch(`${API_URL}/api/projects/save`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error("Erro ao salvar");
       showToast("Projeto salvo com sucesso!", "success");
       fetchProjects();
@@ -291,7 +293,7 @@ export default function App() {
 
   const handleExport = async (format: 'docx' | 'xlsx') => {
     try {
-      const res = await fetch(`/api/export/${format}`, {
+      const res = await fetch(`${API_URL}/api/export/${format}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -328,7 +330,7 @@ export default function App() {
   const handleDeleteProject = async (id: number) => {
     if (!confirm("Excluir projeto?")) return;
     try {
-      await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      await fetch(`${API_URL}/api/projects/${id}`, { method: "DELETE" });
       showToast("Excluído", "success");
       fetchProjects();
     } catch (err) { showToast("Erro ao excluir", "error"); }
