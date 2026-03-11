@@ -11,7 +11,7 @@ import { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType, Ali
 import _ from "lodash";
 
 console.log("Starting Integrar Materials AI Server v2.1...");
-const CORPORATE_GRAY = "666666";
+const CORPORATE_GRAY = "000000";
 const db = new Database("integrar.db");
 
 // Initialize Database v2.1
@@ -124,20 +124,31 @@ const normalizeText = (text: any) => {
 };
 
 const parseDimensionForSort = (dim: string): number => {
-  const lowerDim = dim.toLowerCase();
-  // Handle common fractions
-  if (lowerDim.includes("1/2")) return 0.5;
-  if (lowerDim.includes("1/4")) return 0.25;
-  if (lowerDim.includes("3/4")) return 0.75;
-  // Extract numeric part
-  const match = lowerDim.match(/(\d+(\.\d+)?)/);
-  return match ? parseFloat(match[1]) : 0;
+
+  if (!dim) return 0;
+
+  const match = dim.match(/\d+/);
+
+  if (!match) return 0;
+
+  return parseInt(match[0]);
 };
 
 const normalizeDimension = (dim: any) => {
   if (!dim) return "";
-  let str = String(dim).trim().replace(/(\d+)\s*(mm|m|cm|pol|")/gi, "$1 $2").toLowerCase();
-  // Add more specific normalizations if needed, e.g., "pol" to "polegada"
+  let str = String(dim)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ø|Ø|φ/gi, "")   // remove símbolo de diâmetro
+    .replace(",", ".")
+    .replace(/\s+/g, "")
+    .toLowerCase()
+    .trim();
+
+  if (/^\d+$/.test(str)) return `${str} mm`;
+  if (/^\d+mm$/.test(str)) return str.replace("mm", " mm");
+  if (/^\d+x\d+$/.test(str)) return str.replace("x", "x") + " mm";
+  if (/^\d+x\d+mm$/.test(str)) return str.replace("mm", " mm");
   return str;
 };
 
@@ -146,124 +157,43 @@ const normalizeUnit = (unit: any) => {
   let u = String(unit).trim().toLowerCase();
   return unitMap[u] || u;
 };
+
 const getMaterialCategory = (description: string): string => {
-
-  const desc = description
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-  // helpers
+  const desc = description.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   const has = (word: string) => desc.includes(word);
-
   const hasAny = (words: string[]) => words.some(w => has(w));
-
   const hasAll = (words: string[]) => words.every(w => has(w));
 
-  // ================================
-  // 1️⃣ PVC SOLDÁVEL MARROM
-  // ================================
-
-  const pvcWords = ["pvc"];
-  const marromWords = ["marrom", "marron"];
-  const soldavelWords = ["soldavel", "solda", "linha soldavel"];
-  const aguaFriaWords = ["agua fria"];
-
-  if (
-
-    hasAll(["pvc", "marrom"]) ||
-
-    hasAll(["soldavel", "marrom"]) ||
-
-    hasAll(["pvc", "soldavel"]) ||
-
-    hasAny([
-      "pvc marrom",
-      "pvc soldavel",
-      "linha soldavel",
-      "cor marrom"
-    ]) ||
-
-    (hasAny(pvcWords) && hasAny(marromWords)) ||
-
-    (hasAny(soldavelWords) && hasAny(marromWords)) ||
-
-    (hasAny(pvcWords) && hasAny(soldavelWords)) ||
-
-    (hasAny(aguaFriaWords) && hasAny(pvcWords))
-
-  ) {
+  if (hasAll(["pvc", "marrom"]) || hasAll(["soldavel", "marrom"]) || hasAll(["pvc", "soldavel"]) || hasAny(["pvc marrom", "pvc soldavel", "linha soldavel", "cor marrom", "agua fria"])) {
     return "PVC Soldável Marrom";
   }
-
-  // ================================
-  // 2️⃣ AÇO GALVANIZADO
-  // ================================
-
-  const galvanizadoWords = [
-    "galvanizado",
-    "docolbase",
-    "bsp",
-    "rosca bsp",
-    "metal galvanizado"
-  ];
-
-  if (hasAny(galvanizadoWords)) {
+  if (hasAny(["galvanizado", "docolbase", "bsp", "rosca bsp", "metal galvanizado"])) {
     return "Aço Galvanizado";
   }
-
-  // ================================
-  // 3️⃣ PPR
-  // ================================
-
-  const pprWords = [
-    "ppr",
-    "termofusao",
-    "pn 20",
-    "pn20",
-    "tubo ppr",
-    "linha ppr",
-    "agua quente"
-  ];
-
-  if (hasAny(pprWords)) {
+  if (hasAny(["ppr", "termofusao", "pn 20", "pn20", "tubo ppr", "linha ppr", "agua quente"])) {
     return "PPR";
   }
-
-  // ================================
-  // 4️⃣ PVC ESGOTO SN
-  // ================================
-
-  const esgotoSNWords = [
-    "esgoto sn",
-    "serie normal",
-    "linha esgoto sn"
-  ];
-
-  if (hasAny(esgotoSNWords)) {
+  if (hasAny(["esgoto sn", "serie normal", "linha esgoto sn"])) {
     return "PVC Série Normal";
   }
-
-  // ================================
-  // 5️⃣ PVC ESGOTO SR
-  // ================================
-
-  const esgotoSRWords = [
-    "esgoto sr",
-    "serie reforcada",
-    "linha esgoto sr"
-  ];
-
-  if (hasAny(esgotoSRWords)) {
+  if (hasAny(["esgoto sr", "serie reforcada", "linha esgoto sr"])) {
     return "PVC Série Reforçada";
   }
-
-  // ================================
-  // 6️⃣ EQUIPAMENTOS
-  // ================================
-
   return "Equipamentos";
+};
+
+const isValidMaterialRow = (description: any, dimension: any, quantity: any, unit: any) => {
+  if (!description) return false;
+  const desc = String(description).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const groupTitles = ["agua fria", "agua quente", "esgoto sanitario", "ventilacao", "pluvial", "redes tecnicas"];
+  const qtyRaw = String(quantity || "").replace(",", ".");
+  const qty = parseFloat(qtyRaw);
+  if (groupTitles.some(t => desc.includes(t)) && (isNaN(qty) || qty <= 0)) return false;
+  const invalidWords = ["descricao", "dimensao", "unidade", "quantidade", "total geral", "viptec"];
+  if (invalidWords.some(w => desc.includes(w))) return false;
+  if (desc.length < 3) return false;
+  if (isNaN(qty) || qty <= 0) return false;
+  return true;
 };
 
 // --- API Routes ---
@@ -313,144 +243,101 @@ app.delete("/api/projects/:id", (req, res) => {
 });
 
 app.post("/api/process", upload.any(), async (req, res) => {
+
+  console.log(">>> TESTE MANUS: O NOVO CODIGO ESTA RODANDO <<<");
+
   const startTime = Date.now();
-
-  if (process.env.NODE_ENV !== "production") {
-    console.log("Processing request body keys:", Object.keys(req.body));
-    console.log("Processing files count:", (req.files as any)?.length || 0);
-  }
-
   const files = (req.files as Express.Multer.File[]) || [];
   const { mode = 'global', pavimentosMetadata } = req.body;
-
   const pavs = JSON.parse(pavimentosMetadata || "[]");
   const pavData: Record<string, any[]> = {};
   let totalInputLines = 0;
 
   const processFile = async (file: Express.Multer.File) => {
+    const rows: any[] = [];
     try {
-      const rows: any[] = [];
-
-      await new Promise((resolve, reject) => {
-        let headersMap: any = {};
-
-        fs.createReadStream(file.path)
-          .pipe(csv({ separator: ";", skipLines: 1 }))
-          .on("headers", (headers: string[]) => {
-            headers.forEach(h => {
-              const normalized = h
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .toLowerCase()
-                .trim();
-
-              if (normalized.includes("descricao")) headersMap.description = h;
-              if (normalized.includes("dimensao")) headersMap.dimension = h;
-              if (normalized.includes("unidade")) headersMap.unit = h;
-              if (
-                normalized.includes("quantidade") ||
-                normalized.includes("contagem") ||
-                normalized.includes("qtde") ||
-                normalized.includes("qtd")
-              ) {
-                headersMap.quantity = h;
-              }
-            });
-
-            if (!headersMap.description || !headersMap.quantity) {
-              reject(new Error(`CSV inválido: colunas obrigatórias ausentes.`));
-            }
-          })
-          .on("data", data => {
-            const description = data[headersMap.description];
-            if (!description) return;
-
-            totalInputLines++;
-
-            rows.push({
-              description: String(description).trim(),
-              dimension: String(data[headersMap.dimension] || "").trim(),
-              unit: String(data[headersMap.unit] || "").trim(),
-              quantity: parseFloat(String(data[headersMap.quantity] || 0).replace(",", ".")) || 0,
-              normDesc: normalizeText(description),
-              normDim: normalizeDimension(data[headersMap.dimension]),
-              normUnit: normalizeUnit(data[headersMap.unit])
-            });
-          })
-          .on("end", resolve)
-          .on("error", reject);
+      let content = fs.readFileSync(file.path, 'utf8');
+      if (content.charCodeAt(0) === 0xFEFF) content = content.slice(1);
+      const lines = content.split(/\r?\n/);
+      let headerIndex = -1;
+      for (let i = 0; i < lines.length; i++) {
+        const lowerLine = lines[i].toLowerCase();
+        if (lowerLine.includes('descri') && (lowerLine.includes('quant') || lowerLine.includes('conta'))) {
+          headerIndex = i;
+          break;
+        }
+      }
+      if (headerIndex === -1) return [];
+      const rawHeaders = lines[headerIndex].split(';');
+      const mappedHeaders = rawHeaders.map(h => {
+        const norm = h.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+        if (norm.includes("descri")) return "description";
+        if (norm.includes("dimen") || norm.includes("taman")) return "dimension";
+        if (norm.includes("unid")) return "unit";
+        if (norm.includes("quant") || norm.includes("conta")) return "quantity";
+        return null;
       });
-
+      for (let i = headerIndex + 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line || line.startsWith(';')) continue;
+        const cells = line.split(';');
+        const data: any = {};
+        mappedHeaders.forEach((key, idx) => { if (key) data[key] = cells[idx]; });
+        if (!isValidMaterialRow(data.description, data.dimension, data.quantity, data.unit)) continue;
+        totalInputLines++;
+        rows.push({
+          description: String(data.description).trim(),
+          dimension: data.dimension ? String(data.dimension).trim() : "",
+          unit: String(data.unit || "").trim(),
+          quantity: parseFloat(String(data.quantity || 0).replace(",", ".")) || 0,
+          normDesc: normalizeText(data.description),
+          normDim: normalizeDimension(data.dimension),
+          normUnit: normalizeUnit(data.unit)
+        });
+      }
       return rows;
     } finally {
-
-      try {
-        fs.unlinkSync(file.path);
-      } catch { }
+      try { fs.unlinkSync(file.path); } catch { }
     }
   };
 
   try {
-    console.log(`Processing ${pavs.length} pavimentos...`);
     for (const pav of pavs) {
       pavData[pav.id] = [];
       const pavFiles = files.filter((f: any) => f.fieldname === `files_${pav.id}`);
-      console.log(`Pavimento ${pav.name} (${pav.id}): ${pavFiles.length} files`);
       for (const file of pavFiles) {
         const rows = await processFile(file);
         pavData[pav.id].push(...rows);
       }
     }
-
     const consolidate = (data: any[]) => {
       const map = new Map<string, any>();
-
       data.forEach(item => {
         const key = `${item.normDesc}|${item.normDim}|${item.normUnit}`;
-
-        if (map.has(key)) {
-          map.get(key).quantity += item.quantity;
-        } else {
-          map.set(key, {
-            description: item.normDesc,
-            dimension: item.normDim,
-            unit: item.normUnit,
-            quantity: item.quantity
-          });
-        }
+        if (map.has(key)) { map.get(key).quantity += item.quantity; } 
+        else { map.set(key, { description: item.normDesc, dimension: item.normDim, unit: item.normUnit, quantity: item.quantity }); }
       });
-
-      return Array.from(map.values())
-        .sort((a, b) => {
-          const descCompare = a.description.localeCompare(b.description);
-          if (descCompare !== 0) return descCompare;
-
-          const dimA = parseDimensionForSort(a.dimension);
-          const dimB = parseDimensionForSort(b.dimension);
-          if (dimA !== dimB) return dimA - dimB;
-
-          return a.dimension.localeCompare(b.dimension);
-        });
+      return Array.from(map.values()).sort((a, b) => {
+        const descCompare = a.description.localeCompare(b.description);
+        if (descCompare !== 0) return descCompare;
+        const dimA = parseDimensionForSort(a.dimension);
+        const dimB = parseDimensionForSort(b.dimension);
+        return dimA - dimB;
+      });
     };
-
     let result: any;
     if (mode === 'global') {
-      const all = Object.values(pavData).flat();
-      result = consolidate(all);
+      result = consolidate(Object.values(pavData).flat());
     } else {
       result = { pavimentos: {}, total: consolidate(Object.values(pavData).flat()) };
-      for (const pav of pavs) {
-        result.pavimentos[pav.name] = consolidate(pavData[pav.id]);
-      }
+      for (const pav of pavs) { result.pavimentos[pav.name] = consolidate(pavData[pav.id]); }
     }
-
     const totalConsolidated = mode === 'global' ? result.length : result.total.length;
     res.json({
       data: result,
       stats: { totalLines: totalInputLines, consolidatedLines: totalConsolidated, duplicatesFound: totalInputLines - totalConsolidated, processingTime: (Date.now() - startTime) / 1000 }
     });
   } catch (error: any) {
-    console.error("Process Error:", error);
     res.status(400).json({ error: error.message || "Erro ao processar." });
   }
 });
@@ -600,8 +487,8 @@ app.post("/api/export/docx", async (req, res) => {
                   text: category,
                   bold: true,
                   size: 24,
-                  color: CORPORATE_GRAY,
-                  font: "Calibri"
+                  font: "Garamond",
+                  color: "000000"
                 })
               ]
             })
@@ -610,146 +497,16 @@ app.post("/api/export/docx", async (req, res) => {
           // Tabela da categoria
           const tableRows = [
             new TableRow({
-              children: [
-                new TableCell({
-                  children: [
-                    new Paragraph({
-                      alignment: AlignmentType.CENTER,
-                      children: [
-                        new TextRun({
-                          text: "Descrição",
-                          bold: true,
-                          color: CORPORATE_GRAY,
-                          font: "Calibri"
-                        })
-                      ]
-                    })
-                  ],
-                  borders: {
-                    top: { style: BorderStyle.SINGLE, size: 6, color: "999999" }
-                  }
-                }),
-
-                new TableCell({
-                  children: [
-                    new Paragraph({
-                      alignment: AlignmentType.CENTER,
-                      children: [
-                        new TextRun({
-                          text: "Dimensão",
-                          bold: true,
-                          color: CORPORATE_GRAY,
-                          font: "Calibri"
-                        })
-                      ]
-                    })
-                  ],
-                  borders: {
-                    top: { style: BorderStyle.SINGLE, size: 6, color: "999999" }
-                  }
-                }),
-
-                new TableCell({
-                  children: [
-                    new Paragraph({
-                      alignment: AlignmentType.CENTER,
-                      children: [
-                        new TextRun({
-                          text: "Unidade",
-                          bold: true,
-                          color: CORPORATE_GRAY,
-                          font: "Calibri"
-                        })
-                      ]
-                    })
-                  ],
-                  borders: {
-                    top: { style: BorderStyle.SINGLE, size: 6, color: "999999" }
-                  }
-                }),
-
-                new TableCell({
-                  children: [
-                    new Paragraph({
-                      alignment: AlignmentType.CENTER,
-                      children: [
-                        new TextRun({
-                          text: "Quantidade",
-                          bold: true,
-                          color: CORPORATE_GRAY,
-                          font: "Calibri"
-                        })
-                      ]
-                    })
-                  ],
-                  borders: {
-                    top: { style: BorderStyle.SINGLE, size: 6, color: "999999" }
-                  }
-                })
-              ]
+              children: ["Descrição", "Dimensão", "Unidade", "Quantidade"].map(h => new TableCell({
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: h, bold: true, font: "Garamond" })] })],
+                borders: { top: { style: BorderStyle.SINGLE, size: 6, color: "000000" } }
+              }))
             }),
-            ...grouped[category].map((item: any) =>
-              new TableRow({
-                children: [
-                  new TableCell({
-                    children: [
-                      new Paragraph({
-                        alignment: AlignmentType.CENTER,
-                        children: [
-                          new TextRun({
-                            text: item.description,
-                            font: "Calibri",
-                            color: CORPORATE_GRAY
-                          })
-                        ]
-                      })
-                    ]
-                  }),
-                  new TableCell({
-                    children: [
-                      new Paragraph({
-                        alignment: AlignmentType.CENTER,
-                        children: [
-                          new TextRun({
-                            text: item.dimension,
-                            font: "Calibri",
-                            color: CORPORATE_GRAY
-                          })
-                        ]
-                      })
-                    ]
-                  }),
-                  new TableCell({
-                    children: [
-                      new Paragraph({
-                        alignment: AlignmentType.CENTER,
-                        children: [
-                          new TextRun({
-                            text: item.unit,
-                            font: "Calibri",
-                            color: CORPORATE_GRAY
-                          })
-                        ]
-                      })
-                    ]
-                  }),
-                  new TableCell({
-                    children: [
-                      new Paragraph({
-                        alignment: AlignmentType.CENTER,
-                        children: [
-                          new TextRun({
-                            text: String(item.quantity),
-                            font: "Calibri",
-                            color: CORPORATE_GRAY
-                          })
-                        ]
-                      })
-                    ]
-                  }),
-                ],
-              })
-            ),
+            ...grouped[category].map((item: any) => new TableRow({
+              children: [item.description, item.dimension, item.unit, String(item.quantity)].map(v => new TableCell({
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: v, font: "Garamond" })] })]
+              }))
+            }))
           ];
 
           children.push(
@@ -772,85 +529,20 @@ app.post("/api/export/docx", async (req, res) => {
     };
 
     // Título principal
-    children.unshift(
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 300 },
-        children: [
-          new TextRun({
-            text: `RM - ${project.name} - ${project.revision}`,
-            bold: true,
-            size: 28,
-            color: CORPORATE_GRAY,
-            font: "Calibri"
-          })
-        ]
-      })
-    );
+    children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, children: [new TextRun({ text: `RM - ${project.name} - ${project.revision}`, bold: true, size: 28, font: "Garamond" })] }));
 
     if (project.unification_mode === "global") {
       addCategoryGroup(data);
     } else if (data.pavimentos) {
-      Object.entries(data.pavimentos).forEach(
-        ([name, items]: [string, any]) => {
-          children.push(
-            new Paragraph({
-              alignment: AlignmentType.LEFT,
-              spacing: { before: 200, after: 100 },
-              children: [
-                new TextRun({
-                  text: `PAVIMENTO ${name.toUpperCase()}`,
-                  bold: true,
-                  size: 22,
-                  color: CORPORATE_GRAY,
-                  font: "Calibri"
-                })
-              ]
-            })
-          );
-
-          children.push(new Paragraph(" "));
-          addCategoryGroup(items);
-        }
-      );
-
-      children.push(
-        new Paragraph({
-          alignment: AlignmentType.LEFT,
-          spacing: { before: 300, after: 120 },
-          children: [
-            new TextRun({
-              text: "TOTAL GERAL CONSOLIDADO",
-              bold: true,
-              size: 24,
-              color: CORPORATE_GRAY,
-              font: "Calibri"
-            })
-          ]
-        })
-      );
-
-      children.push(new Paragraph(" "));
+      Object.entries(data.pavimentos).forEach(([name, items]: [string, any]) => {
+        children.push(new Paragraph({ children: [new TextRun({ text: `PAVIMENTO ${name.toUpperCase()}`, bold: true, size: 22, font: "Garamond" })] }));
+        addCategoryGroup(items);
+      });
+      children.push(new Paragraph({ children: [new TextRun({ text: "TOTAL GERAL CONSOLIDADO", bold: true, size: 24, font: "Garamond" })] }));
       addCategoryGroup(data.total);
     }
 
-    const doc = new Document({
-      sections: [
-        {
-          properties: {
-            page: {
-              margin: {
-                top: 720,
-                bottom: 720,
-                left: 720,
-                right: 720
-              }
-            }
-          },
-          children
-        }
-      ]
-    });
+    const doc = new Document({ sections: [{ children }] });
 
     const buffer = await Packer.toBuffer(doc);
 
@@ -881,11 +573,11 @@ app.all("/api/*", (req, res) => {
 
 // Vite middleware
 //if (process.env.NODE_ENV !== "production") {
- // const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
- // app.use(vite.middlewares);
+// const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
+// app.use(vite.middlewares);
 //} else {
- // app.use(express.static("dist"));
- // app.get("*", (req, res) => res.sendFile(path.resolve("dist/index.html")));
+// app.use(express.static("dist"));
+// app.get("*", (req, res) => res.sendFile(path.resolve("dist/index.html")));
 //}
 
 app.get("/", (req, res) => {

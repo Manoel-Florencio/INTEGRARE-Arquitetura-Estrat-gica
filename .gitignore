@@ -8,3 +8,5 @@ coverage/
 !.env.example
 uploads
 *.db
+.env.development
+.env.production
