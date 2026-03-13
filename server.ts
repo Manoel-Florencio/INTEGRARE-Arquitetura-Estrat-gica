@@ -158,6 +158,63 @@ const normalizeUnit = (unit: any) => {
   return unitMap[u] || u;
 };
 
+const cleanMaterialName = (desc: string) => {
+
+  if (!desc) return "";
+
+  let name = desc.toLowerCase();
+
+  // remover padrões de descrição técnica
+  const removePatterns = [
+    /soldavel com bucha.*$/gi,
+    /linha soldavel.*$/gi,
+    /linha esgoto sn.*$/gi,
+    /linha esgoto sr.*$/gi,
+    /classe de pressao.*$/gi,
+    /classe de pressão.*$/gi,
+    /pn\s?\d+.*$/gi,
+    /esgoto sn.*$/gi,
+    /esgoto sr.*$/gi,
+    /agua fria.*$/gi,
+    /água fria.*$/gi,
+    /perola.*$/gi,
+    /pérola.*$/gi,
+    /tigre.*$/gi,
+    /montada com.*$/gi,
+    /porta grelha.*$/gi,
+    /grelha redondos.*$/gi,
+    /grelha brancos.*$/gi,
+    /cor\s+marrom.*$/gi,
+    /cor\s+verde.*$/gi,
+    /cor\s+branca.*$/gi,
+    /cor\s+bege.*$/gi,
+    /soldavel.*$/gi,
+    /soldável.*$/gi,
+    /soldavel\s+longa.*$/gi,
+    /soldável\s+longa.*$/gi,
+    /soldavel\s+20.*$/gi,
+    /soldável\s+20.*$/gi
+  ];
+
+  removePatterns.forEach(pattern => {
+    name = name.replace(pattern, "");
+  });
+
+  // remover vírgulas e hífens
+  name = name.replace(/[,]/g, "");
+  name = name.replace(/[-]/g, "");
+
+  // limpar espaços
+  name = name.replace(/\s+/g, " ").trim();
+
+  // capitalizar
+  name = name.split(" ")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+  return name;
+};
+
 const getMaterialCategory = (description: string): string => {
   const desc = description.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   const has = (word: string) => desc.includes(word);
@@ -173,7 +230,7 @@ const getMaterialCategory = (description: string): string => {
   if (hasAny(["ppr", "termofusao", "pn 20", "pn20", "tubo ppr", "linha ppr", "agua quente"])) {
     return "PPR";
   }
-  if (hasAny(["esgoto sn", "serie normal", "linha esgoto sn"])) {
+  if (hasAny(["esgoto sn", "serie normal", "linha esgoto sn", "caixa sifonada", "grelha quadrada", "porta grelha"])) {
     return "PVC Série Normal";
   }
   if (hasAny(["esgoto sr", "serie reforcada", "linha esgoto sr"])) {
@@ -314,8 +371,19 @@ app.post("/api/process", upload.any(), async (req, res) => {
       const map = new Map<string, any>();
       data.forEach(item => {
         const key = `${item.normDesc}|${item.normDim}|${item.normUnit}`;
-        if (map.has(key)) { map.get(key).quantity += item.quantity; } 
-        else { map.set(key, { description: item.normDesc, dimension: item.normDim, unit: item.normUnit, quantity: item.quantity }); }
+        if (map.has(key)) {
+          const current = map.get(key);
+          current.quantity = Number((current.quantity + item.quantity).toFixed(2));
+        }
+        else {
+          map.set(key, {
+            description: item.normDesc,
+            displayDescription: cleanMaterialName(item.normDesc),
+            dimension: item.normDim,
+            unit: item.normUnit,
+            quantity: Number(item.quantity.toFixed(2))
+          });
+        }
       });
       return Array.from(map.values()).sort((a, b) => {
         const descCompare = a.description.localeCompare(b.description);
@@ -404,7 +472,7 @@ app.post("/api/export/xlsx", async (req, res) => {
       grouped[category].forEach((item: any) => {
 
         const row = worksheet.addRow([
-          item.description,
+          item.displayDescription || item.description,
           item.dimension,
           item.unit,
           item.quantity
@@ -503,7 +571,7 @@ app.post("/api/export/docx", async (req, res) => {
               }))
             }),
             ...grouped[category].map((item: any) => new TableRow({
-              children: [item.description, item.dimension, item.unit, String(item.quantity)].map(v => new TableCell({
+              children: [item.displayDescription || item.description, item.dimension, item.unit, String(item.quantity)].map(v => new TableCell({
                 children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: v, font: "Garamond" })] })]
               }))
             }))
