@@ -454,7 +454,7 @@ export default function App() {
           <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")} />
           <SidebarItem icon={PlusCircle} label="Novo Projeto" active={activeTab === "new-project"} onClick={() => { setMode("create"); resetProjectForm(); setActiveTab("new-project"); }} />
           <SidebarItem icon={History} label="Histórico" active={activeTab === "history"} onClick={() => setActiveTab("history")} />
-          <SidebarItem icon={Settings} label="Configurações" active={activeTab === "config"} onClick={() => setActiveTab("config")} />
+          {/*<SidebarItem icon={Settings} label="Configurações" active={activeTab === "config"} onClick={() => setActiveTab("config")} /> */}
         </nav>
       </aside>
 
