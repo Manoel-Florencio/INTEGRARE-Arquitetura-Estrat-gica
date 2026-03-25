@@ -369,7 +369,7 @@ export default function App() {
     );
     const sorted = getSortedData(filtered);
     return (
-      <div className="overflow-x-auto rounded-2xl" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)" }}>
+      <div className="overflow-x-auto rounded-2xl" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
         <table className="w-full text-left border-collapse">
           <thead style={{ backgroundColor: "var(--bg-secondary)", borderBottom: "1px solid var(--border-color)" }}>
             <tr>
@@ -379,9 +379,12 @@ export default function App() {
               <th className="p-4 text-xs font-semibold text-secondary uppercase text-right cursor-pointer hover:text-white" onClick={() => handleSort('quantity')}><div className="flex items-center justify-end gap-2">Qtd <ArrowUpDown size={14} /></div></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody style={{ borderTop: "1px solid var(--border-color)" }}>
             {sorted.map((item, idx) => (
-              <tr key={idx} className="hover:bg-white/5 transition-colors">
+              <tr key={idx} className="transition-colors"
+                style={{ cursor: "pointer" }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--surface)"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
                 <td className="p-4 text-[#F5F7FA] font-medium">{item.description}</td>
                 <td className="p-4 text-secondary">{item.dimension}</td>
                 <td className="p-4" style={{ color: "var(--text-secondary)" }}>{item.unit}</td>
@@ -407,17 +410,20 @@ export default function App() {
           <div><h1 style={{ letterSpacing: "0.35em", fontWeight: 300 }}>INTEGRARE</h1><p className="text-[10px] text-secondary uppercase tracking-[0.2em] font-semibold">Arquitetura Estratégica</p></div>
         </div>
         <div className="mt-12 pt-6 border-t border-white/10" style={{ borderColor: "var(--border-color)" }}>
+          {/* LIGHT MODE DESABILITADO TEMPORARIAMENTE
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="w-full py-3 rounded-xl text-xs font-semibold transition-all"
             style={{
               backgroundColor: "var(--bg-card)",
               border: "1px solid var(--border-color)",
-              letterSpacing: "0.25em"
+              letterSpacing: "0.25em",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
             }}
           >
             {theme === "dark" ? "ATIVAR LIGHT MODE" : "ATIVAR DARK MODE"}
           </button>
+          */}
         </div>
         <nav className="flex-1 space-y-2">
           <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")} />
@@ -437,31 +443,38 @@ export default function App() {
                   className="p-8 rounded-2xl transition-all"
                   style={{
                     backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-color)"
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
                   }}
                 ><p className="text-sm text-secondary mb-2 uppercase font-semibold">Projetos</p><p className="text-4xl font-bold">{projects.length}</p></div>
                 <div
                   className="p-8 rounded-2xl transition-all"
                   style={{
                     backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-color)"
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
                   }}
                 ><p className="text-sm text-secondary mb-2 uppercase font-semibold">Consolidados</p><p className="text-4xl font-bold">{projects.reduce((acc, p) => acc + p.total_consolidado, 0).toLocaleString()}</p></div>
                 <div
                   className="p-8 rounded-2xl transition-all"
                   style={{
                     backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-color)"
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
                   }}
                 ><p className="text-sm text-emerald-400 mb-2 uppercase font-semibold">Duplicatas</p><p className="text-4xl font-bold text-emerald-400">{projects.reduce((acc, p) => acc + p.total_duplicatas, 0).toLocaleString()}</p></div>
               </div>
               <div className="glass-card overflow-hidden">
                 <div className="p-6 border-b border-white/5 flex justify-between items-center"><h3 className="font-bold">Projetos Recentes</h3></div>
                 <table className="w-full text-left">
-                  <thead className="bg-white/5"><tr><th className="p-4 text-xs font-semibold text-secondary uppercase">Projeto</th><th className="p-4 text-xs font-semibold text-secondary uppercase">Cliente</th><th className="p-4 text-xs font-semibold text-secondary uppercase text-right">Ações</th></tr></thead>
-                  <tbody className="divide-y divide-white/5">
+                  <thead style={{ backgroundColor: "var(--surface)" }}><tr><th className="p-4 text-xs font-semibold text-secondary uppercase">Projeto</th><th className="p-4 text-xs font-semibold text-secondary uppercase">Cliente</th><th className="p-4 text-xs font-semibold text-secondary uppercase text-right">Ações</th></tr></thead>
+                  <tbody style={{ borderTop: "1px solid var(--border-color)" }}>
                     {projects.slice(0, 5).map(p => (
-                      <tr key={p.id} className="hover:bg-white/5 transition-colors"><td className="p-4 font-medium">{p.name} <span className="text-[10px] px-2 py-1 rounded" style={{ border: "1px solid var(--border-color)", letterSpacing: "0.15em" }}>{p.revision}</span></td><td className="p-4 text-secondary">{p.client}</td><td className="p-4 text-right"><button onClick={() => handleViewProject(p)} className="text-indigo-400 hover:text-indigo-300 font-semibold text-sm">Visualizar</button></td></tr>
+                      <tr key={p.id} className="transition-colors"
+                        style={{ cursor: "pointer" }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--surface)"}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
+                        <td className="p-4 font-medium">{p.name} <span className="text-[10px] px-2 py-1 rounded" style={{ border: "1px solid var(--border-color)", letterSpacing: "0.15em" }}>{p.revision}</span></td><td className="p-4 text-secondary">{p.client}</td><td className="p-4 text-right"><button onClick={() => handleViewProject(p)} className="text-indigo-400 hover:text-indigo-300 font-semibold text-sm">Visualizar</button></td></tr>
                     ))}
                   </tbody>
                 </table>
@@ -477,15 +490,16 @@ export default function App() {
                   className="p-10 rounded-2xl"
                   style={{
                     backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-color)"
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
                   }}
                 >
                   <h3 className="text-xl font-bold mb-6 flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">1</div> Informações Gerais</h3>
                   <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Nome do Projeto</label><input type="text" className="input-field" value={currentProject.name} onChange={e => setCurrentProject({ ...currentProject, name: e.target.value })} /></div>
-                    <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Cliente</label><input type="text" className="input-field" value={currentProject.client} onChange={e => setCurrentProject({ ...currentProject, client: e.target.value })} /></div>
-                    <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Código</label><input type="text" className="input-field" value={currentProject.code} onChange={e => setCurrentProject({ ...currentProject, code: e.target.value })} /></div>
-                    <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Revisão</label><select className="input-field" value={currentProject.revision} onChange={e => setCurrentProject({ ...currentProject, revision: e.target.value })}><option value="R00">R00</option><option value="R01">R01</option><option value="R02">R02</option></select></div>
+                    <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Nome do Projeto</label><input type="text" className="input-field" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }} value={currentProject.name} onChange={e => setCurrentProject({ ...currentProject, name: e.target.value })} /></div>
+                    <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Cliente</label><input type="text" className="input-field" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }} value={currentProject.client} onChange={e => setCurrentProject({ ...currentProject, client: e.target.value })} /></div>
+                    <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Código</label><input type="text" className="input-field" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }} value={currentProject.code} onChange={e => setCurrentProject({ ...currentProject, code: e.target.value })} /></div>
+                    <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Revisão</label><select className="input-field" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}  value={currentProject.revision} onChange={e => setCurrentProject({ ...currentProject, revision: e.target.value })}><option value="R00">R00</option><option value="R01">R01</option><option value="R02">R02</option></select></div>
                   </div>
                 </section>
 
@@ -493,7 +507,8 @@ export default function App() {
                   className="p-10 rounded-2xl"
                   style={{
                     backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-color)"
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
                   }}
                 >
                   <div className="flex justify-between items-center mb-6">
@@ -544,7 +559,8 @@ export default function App() {
                   className="p-10 rounded-2xl"
                   style={{
                     backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-color)"
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
                   }}
                 >
                   <h3 className="text-xl font-bold mb-6 flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">3</div> Modo de Unificação</h3>
@@ -575,7 +591,8 @@ export default function App() {
                   className="p-6 rounded-2xl"
                   style={{
                     backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-color)"
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
                   }}
                 ><p
                   className="text-[10px] uppercase font-semibold"
@@ -588,7 +605,8 @@ export default function App() {
                   className="p-6 rounded-2xl"
                   style={{
                     backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-color)"
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
                   }}
                 ><p
                   className="text-[10px] uppercase font-semibold"
@@ -601,14 +619,16 @@ export default function App() {
                   className="p-6 rounded-2xl"
                   style={{
                     backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-color)"
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
                   }}
                 ><p className="text-[10px] text-emerald-400 uppercase font-bold">Duplicatas</p><p className="text-2xl font-bold text-emerald-400">{stats?.duplicatesFound}</p></div>
                 <div
                   className="p-6 rounded-2xl"
                   style={{
                     backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-color)"
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
                   }}
                 ><p
                   className="text-[10px] uppercase font-semibold"
@@ -662,16 +682,19 @@ export default function App() {
               <header className="mb-10"><h2 className="text-3xl font-bold mb-2">Histórico</h2></header>
               <div className="glass-card overflow-hidden">
                 <table className="w-full text-left">
-                  <thead className="bg-white/5"><tr><th className="p-4 text-xs font-semibold text-secondary uppercase">Projeto</th><th className="p-4 text-xs font-semibold text-secondary uppercase">Cliente</th><th className="p-4 text-xs font-semibold text-secondary uppercase text-right">Ações</th></tr></thead>
-                  <tbody className="divide-y divide-white/5">
+                  <thead style={{ backgroundColor: "var(--surface)" }}><tr><th className="p-4 text-xs font-semibold text-secondary uppercase">Projeto</th><th className="p-4 text-xs font-semibold text-secondary uppercase">Cliente</th><th className="p-4 text-xs font-semibold text-secondary uppercase text-right">Ações</th></tr></thead>
+                  <tbody style={{ borderTop: "1px solid var(--border-color)" }}>
                     {projects.map(p => (
-                      <tr key={p.id} className="hover:bg-white/5 transition-colors group">
+                      <tr key={p.id} className="transition-colors group"
+                        style={{ cursor: "pointer" }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--surface)"}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
                         <td className="p-4"><p className="font-bold">{p.name}</p><p className="text-[10px] text-secondary">{p.revision}</p></td>
                         <td className="p-4 text-secondary">{p.client}</td>
                         <td className="p-4 text-right">
                           <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleViewProject(p)} className="p-2 hover:bg-indigo-500/20 text-indigo-400 rounded-lg"><ChevronRight size={18} /></button>
-                            <button onClick={() => handleDeleteProject(p.id!)} className="p-2 hover:bg-rose-500/20 text-rose-400 rounded-lg"><Trash2 size={18} /></button>
+                            <button onClick={() => handleViewProject(p)} className="p-2 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 rounded-lg transition"><ChevronRight size={18} /></button>
+                            <button onClick={() => handleDeleteProject(p.id!)} className="p-2 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded-lg transition"><Trash2 size={18} /></button>
                           </div>
                         </td>
                       </tr>

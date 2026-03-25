@@ -17,17 +17,25 @@
 }
 
 :root[data-theme="light"] {
-  --bg-primary: #8a8888;
-  --bg-secondary: #afadad;
-  --bg-card: #b9b8b8;
+  /* FUNDO PRINCIPAL (cinza elegante) */
+  --bg-primary: #EDEFF2;
 
-  --border-color: rgba(0,0,0,0.08);
+  /* SIDEBAR */
+  --bg-secondary: #DDE1E6;
 
-  --text-primary: #111;
-  --text-secondary: #0c0c0c;
-  --text-muted: #000000;
+  /* CARDS */
+  --bg-card: #FFFFFF;
 
-  --surface: #E6E6E6;
+  /* SUPERFÍCIES (hover / ativos) */
+  --surface: #ECEFF3;
+
+  /* BORDAS */
+  --border-color: #D1D5DB;
+
+  /* TEXTOS */
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --text-muted: #9CA3AF;
 
   --bg-image: url("/background/bg-integrare.png");
 }
@@ -40,14 +48,27 @@
 body {
   @apply antialiased;
 
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
   font-family: 'Montserrat', sans-serif;
 
   min-height: 100vh;
   position: relative;
 
   transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* DARK continua simples */
+:root[data-theme="dark"] body {
+  background-color: var(--bg-primary);
+}
+
+/* LIGHT com gradiente premium */
+:root[data-theme="light"] body {
+  background: linear-gradient(
+    120deg,
+    #EDEFF2 0%,
+    #F5F7FA 40%,
+    #E6E9ED 100%
+  );
 }
 }
 
@@ -99,6 +120,16 @@ body {
     outline: none;
     border-color: var(--text-primary);
   }
+
+  select {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+select option {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
 
   /* Sidebar */
   .sidebar-item {

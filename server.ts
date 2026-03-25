@@ -9,6 +9,8 @@ import path from "path";
 import fs from "fs";
 import { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType, AlignmentType, TextRun, BorderStyle } from "docx";
 import _ from "lodash";
+import { TableLayoutType } from "docx";
+import { materialMap } from "./materialMap";
 
 console.log("Starting Integrar Materials AI Server v2.1...");
 const CORPORATE_GRAY = "000000";
@@ -158,59 +160,51 @@ const normalizeUnit = (unit: any) => {
   return unitMap[u] || u;
 };
 
-const cleanMaterialName = (desc: string) => {
+const normalizeKey = (text: string) => {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const cleanMaterialName = (desc: string): string => {
 
   if (!desc) return "";
 
-  let name = desc.toLowerCase();
+  const original = desc.trim();
 
-  // remover padrões de descrição técnica
-  const removePatterns = [
-    /soldavel com bucha.*$/gi,
-    /linha soldavel.*$/gi,
-    /linha esgoto sn.*$/gi,
-    /linha esgoto sr.*$/gi,
-    /classe de pressao.*$/gi,
-    /classe de pressão.*$/gi,
-    /pn\s?\d+.*$/gi,
-    /esgoto sn.*$/gi,
-    /esgoto sr.*$/gi,
-    /agua fria.*$/gi,
-    /água fria.*$/gi,
-    /perola.*$/gi,
-    /pérola.*$/gi,
-    /tigre.*$/gi,
-    /montada com.*$/gi,
-    /porta grelha.*$/gi,
-    /grelha redondos.*$/gi,
-    /grelha brancos.*$/gi,
-    /cor\s+marrom.*$/gi,
-    /cor\s+verde.*$/gi,
-    /cor\s+branca.*$/gi,
-    /cor\s+bege.*$/gi,
-    /soldavel.*$/gi,
-    /soldável.*$/gi,
-    /soldavel\s+longa.*$/gi,
-    /soldável\s+longa.*$/gi,
-    /soldavel\s+20.*$/gi,
-    /soldável\s+20.*$/gi
-  ];
+  if (materialMap[original]) {
+    return materialMap[original];
+  }
 
-  removePatterns.forEach(pattern => {
-    name = name.replace(pattern, "");
-  });
+  const normalizedOriginal = normalizeKey(original);
 
-  // remover vírgulas e hífens
-  name = name.replace(/[,]/g, "");
-  name = name.replace(/[-]/g, "");
+  for (const key in materialMap) {
+    const normalizedKeyMap = normalizeKey(key);
 
-  // limpar espaços
-  name = name.replace(/\s+/g, " ").trim();
+    if (normalizedOriginal === normalizedKeyMap) {
+      return materialMap[key];
+    }
+  }
 
-  // capitalizar
-  name = name.split(" ")
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+  for (const key in materialMap) {
+    const normalizedKeyMap = normalizeKey(key);
+
+    if (
+      normalizedOriginal.includes(normalizedKeyMap) ||
+      normalizedKeyMap.includes(normalizedOriginal)
+    ) {
+      return materialMap[key];
+    }
+  }
+
+  let name = original
+    .replace(/,.*$/g, "") // remove descrição após vírgula
+    .replace(/- *tigre/gi, "") // remove marca
+    .replace(/\s+/g, " ")
+    .trim();
 
   return name;
 };
@@ -378,7 +372,7 @@ app.post("/api/process", upload.any(), async (req, res) => {
         else {
           map.set(key, {
             description: item.normDesc,
-            displayDescription: cleanMaterialName(item.normDesc),
+            displayDescription: cleanMaterialName(item.description),
             dimension: item.normDim,
             unit: item.normUnit,
             quantity: Number(item.quantity.toFixed(2))
@@ -542,50 +536,85 @@ app.post("/api/export/docx", async (req, res) => {
         "Equipamentos"
       ];
 
+      const createCell = (text: string, width: number, bold = false) => {
+        return new TableCell({
+          width: { size: width, type: WidthType.PERCENTAGE },
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({
+                  text,
+                  bold,
+                  font: "Garamond"
+                })
+              ]
+            })
+          ]
+        });
+      };
+
       categoriesOrder.forEach(category => {
         if (grouped[category] && grouped[category].length > 0) {
 
-          // Título da categoria
-          children.push(
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              spacing: { before: 200, after: 120 },
+          // 🔥 LINHA DA CATEGORIA
+          const categoryRow = new TableRow({
+            children: [
+              new TableCell({
+                columnSpan: 4,
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [
+                      new TextRun({
+                        text: category,
+                        bold: true,
+                        size: 24,
+                        font: "Garamond"
+                      })
+                    ]
+                  })
+                ]
+              })
+            ]
+          });
+
+          // CABEÇALHO
+          const headerRow = new TableRow({
+            children: [
+              createCell("Descrição", 50, true),
+              createCell("Dimensão", 20, true),
+              createCell("Unidade", 15, true),
+              createCell("Quantidade", 15, true)
+            ]
+          });
+
+          // DADOS
+          const dataRows = grouped[category].map((item: any) =>
+            new TableRow({
               children: [
-                new TextRun({
-                  text: category,
-                  bold: true,
-                  size: 24,
-                  font: "Garamond",
-                  color: "000000"
-                })
+                createCell(item.displayDescription || item.description, 50),
+                createCell(item.dimension, 20),
+                createCell(item.unit, 15),
+                createCell(String(item.quantity), 15)
               ]
             })
           );
 
-          // Tabela da categoria
-          const tableRows = [
-            new TableRow({
-              children: ["Descrição", "Dimensão", "Unidade", "Quantidade"].map(h => new TableCell({
-                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: h, bold: true, font: "Garamond" })] })],
-                borders: { top: { style: BorderStyle.SINGLE, size: 6, color: "000000" } }
-              }))
-            }),
-            ...grouped[category].map((item: any) => new TableRow({
-              children: [item.displayDescription || item.description, item.dimension, item.unit, String(item.quantity)].map(v => new TableCell({
-                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: v, font: "Garamond" })] })]
-              }))
-            }))
-          ];
+          const table = new Table({
+            width: {
+              size: 100,
+              type: WidthType.PERCENTAGE
+            },
+            layout: TableLayoutType.FIXED,
+            rows: [
+              categoryRow,
+              headerRow,
+              ...dataRows
+            ]
+          });
 
-          children.push(
-            new Table({
-              width: {
-                size: 100,
-                type: WidthType.PERCENTAGE,
-              },
-              rows: tableRows,
-            })
-          );
+          children.push(table);
 
           children.push(
             new Paragraph({
