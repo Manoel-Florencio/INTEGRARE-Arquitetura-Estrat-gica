@@ -13,7 +13,7 @@ export const materialMap: Record<string, string> = {
     "Caixa Sifonada",
 
   "Cap, Esgoto SN - Tigre":
-    "Cap/tampao",
+    "Cap/tampão",
 
   "Curva 90º Curta, Esgoto SN - Tigre":
     "Curva 90º Curta",

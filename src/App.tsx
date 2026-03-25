@@ -96,6 +96,7 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   const [expandedPavs, setExpandedPavs] = useState<Record<string, boolean>>({});
+  const [mode, setMode] = useState<"create" | "edit">("create");
 
   useEffect(() => { fetchProjects(); }, []);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -337,14 +338,38 @@ export default function App() {
   };
 
   const handleViewProject = (project: Project) => {
+    setMode("edit"); // IMPORTANTE
+
     setCurrentProject(project);
+
     const parsed = typeof project.dados_json === "string"
       ? JSON.parse(project.dados_json)
       : project.dados_json;
 
     setResults(parsed);
-    setStats({ totalLines: project.total_processado, consolidatedLines: project.total_consolidado, duplicatesFound: project.total_duplicatas, processingTime: project.processing_time });
+
+    setStats({
+      totalLines: project.total_processado,
+      consolidatedLines: project.total_consolidado,
+      duplicatesFound: project.total_duplicatas,
+      processingTime: project.processing_time
+    });
+
     setActiveTab("results");
+  };
+
+  const handleEditProject = () => {
+    setMode("edit");
+    setActiveTab("new-project");
+  };
+
+  const handleBackToResults = () => {
+    setActiveTab("results");
+  };
+
+  const handleCancelEdit = () => {
+    setMode("create");
+    resetProjectForm();
   };
 
   const handleSort = (key: string) => {
@@ -427,7 +452,7 @@ export default function App() {
         </div>
         <nav className="flex-1 space-y-2">
           <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")} />
-          <SidebarItem icon={PlusCircle} label="Novo Projeto" active={activeTab === "new-project"} onClick={() => { resetProjectForm(); setActiveTab("new-project"); }} />
+          <SidebarItem icon={PlusCircle} label="Novo Projeto" active={activeTab === "new-project"} onClick={() => { setMode("create"); resetProjectForm(); setActiveTab("new-project"); }} />
           <SidebarItem icon={History} label="Histórico" active={activeTab === "history"} onClick={() => setActiveTab("history")} />
           <SidebarItem icon={Settings} label="Configurações" active={activeTab === "config"} onClick={() => setActiveTab("config")} />
         </nav>
@@ -484,7 +509,20 @@ export default function App() {
 
           {activeTab === "new-project" && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} key="new-project" className="max-w-4xl mx-auto">
-              <header className="mb-10 text-center"><h2 className="text-3xl font-bold mb-2">Novo Projeto</h2><p className="text-secondary">Organize por pavimentos e faça o upload das planilhas.</p></header>
+              <header className="mb-10 text-center"><h2 className="text-3xl font-bold mb-2">
+                {mode === "edit" ? "Editando Projeto" : "Novo Projeto"}
+              </h2>
+                <p className="text-secondary">Organize por pavimentos e faça o upload das planilhas.</p>
+                {mode === "edit" && (
+                  <button
+                    onClick={handleBackToResults}
+                    className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg transition"
+                  >
+                    ← Voltar
+                  </button>
+                )}
+              </header>
+
               <div className="space-y-12">
                 <section
                   className="p-10 rounded-2xl"
@@ -499,7 +537,7 @@ export default function App() {
                     <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Nome do Projeto</label><input type="text" className="input-field" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }} value={currentProject.name} onChange={e => setCurrentProject({ ...currentProject, name: e.target.value })} /></div>
                     <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Cliente</label><input type="text" className="input-field" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }} value={currentProject.client} onChange={e => setCurrentProject({ ...currentProject, client: e.target.value })} /></div>
                     <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Código</label><input type="text" className="input-field" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }} value={currentProject.code} onChange={e => setCurrentProject({ ...currentProject, code: e.target.value })} /></div>
-                    <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Revisão</label><select className="input-field" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}  value={currentProject.revision} onChange={e => setCurrentProject({ ...currentProject, revision: e.target.value })}><option value="R00">R00</option><option value="R01">R01</option><option value="R02">R02</option></select></div>
+                    <div className="space-y-2"><label className="text-xs font-semibold text-secondary uppercase">Revisão</label><select className="input-field" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }} value={currentProject.revision} onChange={e => setCurrentProject({ ...currentProject, revision: e.target.value })}><option value="R00">R00</option><option value="R01">R01</option><option value="R02">R02</option></select></div>
                   </div>
                 </section>
 
@@ -580,6 +618,10 @@ export default function App() {
               <header className="mb-10 flex justify-between items-end">
                 <div><h2 className="text-3xl font-bold mb-2">{currentProject.name} <span className="text-sm bg-indigo-500/20 text-indigo-400 px-2 py-1 rounded ml-2">{currentProject.revision}</span></h2><p className="text-secondary">Cliente: {currentProject.client}</p></div>
                 <div className="flex gap-3">
+                  <button
+                    onClick={handleEditProject} className="flex items-center gap-2 px-4 py-2 bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 rounded-lg text-sm font-semibold">
+                    Editar
+                  </button>
                   <button onClick={handleSaveProject} className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm font-semibold"><Save size={18} /> Salvar</button>
                   <button onClick={() => handleExport('xlsx')} className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm font-semibold"><FileSpreadsheet size={18} /> Excel</button>
                   <button onClick={() => handleExport('docx')} className="btn-primary px-6 py-2 text-sm flex items-center gap-2"><FileText size={18} /> Gerar DOCX</button>
