@@ -4,7 +4,6 @@ import multer from "multer";
 import cors from "cors";
 import Database from "better-sqlite3";
 import ExcelJS from "exceljs";
-import csv from "csv-parser";
 import path from "path";
 import fs from "fs";
 import { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType, AlignmentType, TextRun, BorderStyle } from "docx";
@@ -139,6 +138,8 @@ const parseDimensionForSort = (dim: string): number => {
 const normalizeDimension = (dim: any) => {
   if (!dim) return "";
   let str = String(dim)
+    .replace(/^"|"$/g, '') // Remove aspas no início e fim da célula
+    .replace(/""/g, '"')   // Transforma aspas duplas internas em aspas simples (polegada)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/ø|Ø|φ/gi, "")   // remove símbolo de diâmetro
@@ -201,6 +202,7 @@ const cleanMaterialName = (desc: string): string => {
   }
 
   let name = original
+    .replace(/^VIPTEC:\s*/i, "")
     .replace(/,.*$/g, "") // remove descrição após vírgula
     .replace(/- *tigre/gi, "") // remove marca
     .replace(/\s+/g, " ")
@@ -218,7 +220,7 @@ const getMaterialCategory = (description: string): string => {
   if (hasAll(["pvc", "marrom"]) || hasAll(["soldavel", "marrom"]) || hasAll(["pvc", "soldavel"]) || hasAny(["pvc marrom", "pvc soldavel", "linha soldavel", "cor marrom", "agua fria"])) {
     return "PVC Soldável Marrom";
   }
-  if (hasAny(["galvanizado", "docolbase", "bsp", "rosca bsp", "metal galvanizado"])) {
+  if (hasAny(["galvanizado", "docolbase", "bsp", "rosca bsp", "metal galvanizado", "base misturador", "registro de gaveta"])) {
     return "Aço Galvanizado";
   }
   if (hasAny(["ppr", "termofusao", "pn 20", "pn20", "tubo ppr", "linha ppr", "agua quente"])) {
@@ -240,11 +242,23 @@ const isValidMaterialRow = (description: any, dimension: any, quantity: any, uni
   const qtyRaw = String(quantity || "").replace(",", ".");
   const qty = parseFloat(qtyRaw);
   if (groupTitles.some(t => desc.includes(t)) && (isNaN(qty) || qty <= 0)) return false;
-  const invalidWords = ["descricao", "dimensao", "unidade", "quantidade", "total geral", "viptec"];
+  const invalidWords = ["descricao", "dimensao", "unidade", "quantidade", "total geral"];
   if (invalidWords.some(w => desc.includes(w))) return false;
   if (desc.length < 3) return false;
   if (isNaN(qty) || qty <= 0) return false;
   return true;
+};
+
+const formatPavimentoName = (name: string, index: number) => {
+  if (!name) return `${index + 1}.`;
+
+  const formatted = name
+    .toLowerCase()
+    .split(" ")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+  return `${index + 1}. ${formatted}`;
 };
 
 // --- API Routes ---
@@ -309,42 +323,71 @@ app.post("/api/process", upload.any(), async (req, res) => {
     try {
       let content = fs.readFileSync(file.path, 'utf8');
       if (content.charCodeAt(0) === 0xFEFF) content = content.slice(1);
+
       const lines = content.split(/\r?\n/);
       let headerIndex = -1;
+
+      // 1. Busca o cabeçalho real (ignora títulos de projeto no topo)
       for (let i = 0; i < lines.length; i++) {
         const lowerLine = lines[i].toLowerCase();
+        // Procura pela linha que tem "descrição" e "contagem" ou "quantidade"
         if (lowerLine.includes('descri') && (lowerLine.includes('quant') || lowerLine.includes('conta'))) {
           headerIndex = i;
           break;
         }
       }
+
       if (headerIndex === -1) return [];
+
       const rawHeaders = lines[headerIndex].split(';');
       const mappedHeaders = rawHeaders.map(h => {
         const norm = h.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+        // Mapeamento super preciso
+        if (norm === "contagem" || norm === "quantidade" || (norm.includes("quant") && !norm.includes("constar"))) {
+          return "quantity";
+        }
         if (norm.includes("descri")) return "description";
         if (norm.includes("dimen") || norm.includes("taman")) return "dimension";
         if (norm.includes("unid")) return "unit";
-        if (norm.includes("quant") || norm.includes("conta")) return "quantity";
+
         return null;
       });
+
+
+      // 2. Processa os dados
       for (let i = headerIndex + 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line || line.startsWith(';')) continue;
+
         const cells = line.split(';');
         const data: any = {};
         mappedHeaders.forEach((key, idx) => { if (key) data[key] = cells[idx]; });
-        if (!isValidMaterialRow(data.description, data.dimension, data.quantity, data.unit)) continue;
-        totalInputLines++;
-        rows.push({
-          description: String(data.description).trim(),
-          dimension: data.dimension ? String(data.dimension).trim() : "",
-          unit: String(data.unit || "").trim(),
-          quantity: parseFloat(String(data.quantity || 0).replace(",", ".")) || 0,
-          normDesc: normalizeText(data.description),
-          normDim: normalizeDimension(data.dimension),
-          normUnit: normalizeUnit(data.unit)
-        });
+
+        // Validação extra: Se a linha for um título de grupo (ex: "Água Fria") 
+        // ela não terá dimensão ou unidade preenchida corretamente.
+        if (!data.description || !data.quantity) continue;
+
+        // Converte quantidade tratando vírgula
+        const qtyRaw = String(data.quantity).replace(",", ".");
+        const qty = parseFloat(qtyRaw);
+
+        // Se não for um número válido ou for título de seção, pula
+        if (isNaN(qty) || qty <= 0) continue;
+
+        // Se a descrição for igual a um dos títulos de cabeçalho, pula
+        if (isValidMaterialRow(data.description, data.dimension, data.quantity, data.unit)) {
+          totalInputLines++;
+          rows.push({
+            description: String(data.description).trim(),
+            dimension: data.dimension ? String(data.dimension).trim() : "",
+            unit: String(data.unit || "").trim(),
+            quantity: qty,
+            normDesc: normalizeText(data.description),
+            normDim: normalizeDimension(data.dimension),
+            normUnit: normalizeUnit(data.unit)
+          });
+        }
       }
       return rows;
     } finally {
@@ -631,10 +674,27 @@ app.post("/api/export/docx", async (req, res) => {
     if (project.unification_mode === "global") {
       addCategoryGroup(data);
     } else if (data.pavimentos) {
-      Object.entries(data.pavimentos).forEach(([name, items]: [string, any]) => {
-        children.push(new Paragraph({ children: [new TextRun({ text: `PAVIMENTO ${name.toUpperCase()}`, bold: true, size: 22, font: "Garamond" })] }));
-        addCategoryGroup(items);
-      });
+      Object.entries(data.pavimentos).forEach(
+  ([name, items]: [string, any], index: number) => {
+
+    const title = formatPavimentoName(name, index);
+
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: title,
+            bold: true,
+            size: 22,
+            font: "Garamond"
+          })
+        ]
+      })
+    );
+
+    addCategoryGroup(items);
+  }
+);
       children.push(new Paragraph({ children: [new TextRun({ text: "TOTAL GERAL CONSOLIDADO", bold: true, size: 24, font: "Garamond" })] }));
       addCategoryGroup(data.total);
     }

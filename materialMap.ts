@@ -1,5 +1,8 @@
 export const materialMap: Record<string, string> = {
 
+  "Adaptador Soldável Curto com Bolsa e Rosca Para Registro":
+    "Adaptador Soldável Curto com Bolsa e Rosca",
+
   "Bucha de Redução Longa, Esgoto SN - Tigre":
     "Bucha de Redução Longa",
 
