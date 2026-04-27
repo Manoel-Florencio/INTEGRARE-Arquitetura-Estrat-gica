@@ -9,7 +9,7 @@ import fs from "fs";
 import { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType, AlignmentType, TextRun, BorderStyle } from "docx";
 import _ from "lodash";
 import { TableLayoutType } from "docx";
-import { materialMap } from "./materialMap";
+import { isIgnoredMaterial, mapMaterialName } from "./materialMap";
 
 console.log("Starting Integrar Materials AI Server v2.1...");
 const CORPORATE_GRAY = "000000";
@@ -155,50 +155,59 @@ const normalizeDimension = (dim: any) => {
   return str;
 };
 
+const formatDisplayDimension = (dim: any) => {
+  if (!dim) return "";
+
+  const original = String(dim).trim();
+  const hasDiameterMarker = /[Øøφ]/.test(original);
+  const hasInchMark = /["“”]/.test(original);
+
+  let str = original
+    .replace(/^"|"$/g, "")
+    .replace(/""/g, "\"")
+    .replace(/[“”]/g, "\"")
+    .replace(/[Øøφ]/g, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/Ã¸|Ã˜|Ï†/gi, "")
+    .trim();
+
+  str = str
+    .replace(/1\s*\.\s*1\/2/g, "1 1/2")
+    .replace(/1\s*\.\s*1\/4/g, "1 1/4")
+    .replace(/2\s*\.\s*1\/2/g, "2 1/2")
+    .replace(/(\d)\s+(\d\/\d)/g, "$1 $2")
+    .replace(/(\d)\s*\/\s*(\d)/g, "$1/$2")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const looksLikeInchFraction =
+    /^\d+\s+\d\/\d"?$/.test(str) ||
+    /^\d\/\d"?$/.test(str);
+  const shouldDisplayAsInches =
+    hasDiameterMarker || hasInchMark || looksLikeInchFraction;
+
+  if (shouldDisplayAsInches && !str.endsWith("\"")) {
+    str = `${str}"`;
+  }
+
+  return str;
+};
+
 const normalizeUnit = (unit: any) => {
   if (!unit) return "un";
   let u = String(unit).trim().toLowerCase();
   return unitMap[u] || u;
 };
 
-const normalizeKey = (text: string) => {
-  return text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-};
-
 const cleanMaterialName = (desc: string): string => {
-
   if (!desc) return "";
 
   const original = desc.trim();
+  const mappedName = mapMaterialName(original);
 
-  if (materialMap[original]) {
-    return materialMap[original];
-  }
-
-  const normalizedOriginal = normalizeKey(original);
-
-  for (const key in materialMap) {
-    const normalizedKeyMap = normalizeKey(key);
-
-    if (normalizedOriginal === normalizedKeyMap) {
-      return materialMap[key];
-    }
-  }
-
-  for (const key in materialMap) {
-    const normalizedKeyMap = normalizeKey(key);
-
-    if (
-      normalizedOriginal.includes(normalizedKeyMap) ||
-      normalizedKeyMap.includes(normalizedOriginal)
-    ) {
-      return materialMap[key];
-    }
+  if (mappedName && mappedName !== original) {
+    return mappedName;
   }
 
   let name = original
@@ -220,7 +229,7 @@ const getMaterialCategory = (description: string): string => {
   if (hasAll(["pvc", "marrom"]) || hasAll(["soldavel", "marrom"]) || hasAll(["pvc", "soldavel"]) || hasAny(["pvc marrom", "pvc soldavel", "linha soldavel", "cor marrom", "agua fria"])) {
     return "PVC Soldável Marrom";
   }
-  if (hasAny(["galvanizado", "docolbase", "bsp", "rosca bsp", "metal galvanizado", "base misturador", "registro de gaveta"])) {
+  if (hasAny(["galvanizado", "docolbase", "bsp", "rosca bsp", "metal galvanizado", "base misturador", "registro de gaveta", "niple duplo"])) {
     return "Aço Galvanizado";
   }
   if (hasAny(["ppr", "termofusao", "pn 20", "pn20", "tubo ppr", "linha ppr", "agua quente"])) {
@@ -376,11 +385,15 @@ app.post("/api/process", upload.any(), async (req, res) => {
         if (isNaN(qty) || qty <= 0) continue;
 
         // Se a descrição for igual a um dos títulos de cabeçalho, pula
-        if (isValidMaterialRow(data.description, data.dimension, data.quantity, data.unit)) {
+        if (
+          isValidMaterialRow(data.description, data.dimension, data.quantity, data.unit) &&
+          !isIgnoredMaterial(data.description)
+        ) {
           totalInputLines++;
           rows.push({
             description: String(data.description).trim(),
             dimension: data.dimension ? String(data.dimension).trim() : "",
+            displayDimension: formatDisplayDimension(data.dimension),
             unit: String(data.unit || "").trim(),
             quantity: qty,
             normDesc: normalizeText(data.description),
@@ -413,12 +426,13 @@ app.post("/api/process", upload.any(), async (req, res) => {
           current.quantity = Number((current.quantity + item.quantity).toFixed(2));
         }
         else {
-          map.set(key, {
-            description: item.normDesc,
-            displayDescription: cleanMaterialName(item.description),
-            dimension: item.normDim,
-            unit: item.normUnit,
-            quantity: Number(item.quantity.toFixed(2))
+              map.set(key, {
+                description: item.normDesc,
+                displayDescription: cleanMaterialName(item.description),
+                displayDimension: item.displayDimension || formatDisplayDimension(item.dimension),
+                dimension: item.normDim,
+                unit: item.normUnit,
+                quantity: Number(item.quantity.toFixed(2))
           });
         }
       });
@@ -510,7 +524,7 @@ app.post("/api/export/xlsx", async (req, res) => {
 
         const row = worksheet.addRow([
           item.displayDescription || item.description,
-          item.dimension,
+          item.displayDimension || item.dimension,
           item.unit,
           item.quantity
         ]);
@@ -637,7 +651,7 @@ app.post("/api/export/docx", async (req, res) => {
             new TableRow({
               children: [
                 createCell(item.displayDescription || item.description, 50),
-                createCell(item.dimension, 20),
+                createCell(item.displayDimension || item.dimension, 20),
                 createCell(item.unit, 15),
                 createCell(String(item.quantity), 15)
               ]

@@ -41,7 +41,9 @@ interface ProcessingStats {
 
 interface MaterialItem {
   description: string;
+  displayDescription?: string;
   dimension: string;
+  displayDimension?: string;
   unit: string;
   quantity: number;
 }
@@ -389,8 +391,8 @@ export default function App() {
 
   const renderTable = (data: MaterialItem[]) => {
     const filtered = data.filter(item =>
-      item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.dimension?.toLowerCase().includes(searchTerm.toLowerCase())
+      (item.displayDescription || item.description)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.displayDimension || item.dimension)?.toLowerCase().includes(searchTerm.toLowerCase())
     );
     const sorted = getSortedData(filtered);
     return (
@@ -410,8 +412,8 @@ export default function App() {
                 style={{ cursor: "pointer" }}
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--surface)"}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
-                <td className="p-4 text-[#F5F7FA] font-medium">{item.description}</td>
-                <td className="p-4 text-secondary">{item.dimension}</td>
+                <td className="p-4 text-[#F5F7FA] font-medium">{item.displayDescription || item.description}</td>
+                <td className="p-4 text-secondary">{item.displayDimension || item.dimension}</td>
                 <td className="p-4" style={{ color: "var(--text-secondary)" }}>{item.unit}</td>
                 <td className="p-4 text-[#F5F7FA] text-right font-mono">{item.quantity.toLocaleString('pt-BR')}</td>
               </tr>

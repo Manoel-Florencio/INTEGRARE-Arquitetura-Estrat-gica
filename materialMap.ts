@@ -1,5 +1,4 @@
 export const materialMap: Record<string, string> = {
-
   "Adaptador Soldável Curto com Bolsa e Rosca Para Registro":
     "Adaptador Soldável Curto com Bolsa e Rosca",
 
@@ -88,6 +87,145 @@ export const materialMap: Record<string, string> = {
     "Tubo PVC rígido Série Normal - SN",
 
   "Tubo PVC rígido, cor marrom, linha soldável - Tigre":
-    "Tubo PVC soldável marrom"
+    "Tubo PVC soldável marrom",
 
+  // Mapeamento da planilha "antes e depois - Conexões - 24.04.csv"
+  "Elemento Filtrante VRP Premium Ø2\"":
+    "Elemento Filtrante VRP Premium",
+
+  "Hidrômetro Ø1\"":
+    "Hidrômetro",
+
+  "Hidrômetro Ø3/4\"":
+    "Hidrômetro",
+
+  "Manômetro":
+    "Manômetro",
+
+  "Válvula de Esfera Ø1 1/2\"":
+    "Registro Esfera",
+
+  "Válvula de Esfera Ø1 1/4\"":
+    "Registro Esfera",
+
+  "Válvula de Esfera Ø1\"":
+    "Registro Esfera",
+
+    "Válvula de Esfera 1/2\"":
+    "Registro Esfera",
+
+  "Válvula de Esfera Ø2 1/2\"":
+    "Registro Esfera",
+
+  "Válvula de Esfera Ø2\"":
+    "Registro Esfera",
+
+  "Válvula de Esfera Ø3/4\"":
+    "Registro Esfera",
+
+  "Válvula de retenção horizontal Ø1 1/4\"":
+    "Válvula de Retenção Horizontal",
+
+  "Válvula de Retenção Vertical 1\"":
+    "Válvula de Retenção Vertical",
+
+  "Válvula Redutora de Pressão VRP Premium Ø1 1/2\"":
+    "Válvula Redutora de Pressão VRP Premium",
+
+  "Válvula Redutora de Pressão VRP Premium Ø1\"":
+    "Válvula Redutora de Pressão VRP Premium",
+
+  "Válvula Ventosa Ø1\"":
+    "Ventosa",
+
+  "Válvula Ventosa Ø3/4\"":
+    "Ventosa",
+
+  "Registro Esfera VS Soldável - Tigre":
+    "Registro Esfera com União Soldável"
+};
+
+export const ignoredMaterials = [
+  "Torneira de Jardim - Luxo Docol"
+];
+
+const normalizeInchFractions = (value: string) =>
+  value
+    .replace(/1\s*\.\s*1\/2/g, "1 1/2")
+    .replace(/1\s+\s*1\/2/g, "1 1/2")
+    .replace(/1\s+\s*1\/4/g, "1 1/4")
+    .replace(/2\s+\s*1\/2/g, "2 1/2")
+    .replace(/3\s+\s*1\/4/g, "3 1/4")
+    .replace(/(\d)\s*\/\s*(\d)/g, "$1/$2");
+
+export const normalizeMaterialKey = (text: string) => {
+  return normalizeInchFractions(
+    text
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[“”]/g, "\"")
+      .replace(/''/g, "\"")
+      .replace(/["]+/g, "\"")
+      .replace(/ø|Ø|∅|phi|diam\.?/gi, "")
+      .replace(/\bpolegadas?\b/gi, "\"")
+      .replace(/\s*mm\b/gi, " mm")
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .trim()
+  );
+};
+
+const normalizedEntries = Object.entries(materialMap).map(([source, target]) => ({
+  source,
+  target,
+  normalizedSource: normalizeMaterialKey(source)
+}));
+
+const normalizedIgnoredMaterials = ignoredMaterials.map(item =>
+  normalizeMaterialKey(item)
+);
+
+export const mapMaterialName = (description: string) => {
+  if (!description) return "";
+
+  const original = description.trim();
+
+  if (materialMap[original]) {
+    return materialMap[original];
+  }
+
+  const normalizedOriginal = normalizeMaterialKey(original);
+
+  const exactMatch = normalizedEntries.find(
+    entry => entry.normalizedSource === normalizedOriginal
+  );
+
+  if (exactMatch) {
+    return exactMatch.target;
+  }
+
+  const partialMatch = normalizedEntries.find(
+    entry =>
+      normalizedOriginal.includes(entry.normalizedSource) ||
+      entry.normalizedSource.includes(normalizedOriginal)
+  );
+
+  if (partialMatch) {
+    return partialMatch.target;
+  }
+
+  return original;
+};
+
+export const isIgnoredMaterial = (description: string) => {
+  if (!description) return false;
+
+  const normalizedDescription = normalizeMaterialKey(description);
+
+  return normalizedIgnoredMaterials.some(
+    ignored =>
+      normalizedDescription === ignored ||
+      normalizedDescription.includes(ignored) ||
+      ignored.includes(normalizedDescription)
+  );
 };
