@@ -111,7 +111,7 @@ export const materialMap: Record<string, string> = {
   "Válvula de Esfera Ø1\"":
     "Registro Esfera",
 
-    "Válvula de Esfera 1/2\"":
+  "Válvula de Esfera 1/2\"":
     "Registro Esfera",
 
   "Válvula de Esfera Ø2 1/2\"":
@@ -142,10 +142,29 @@ export const materialMap: Record<string, string> = {
     "Ventosa",
 
   "Registro Esfera VS Soldável - Tigre":
-    "Registro Esfera com União Soldável"
-};
+    "Registro Esfera com União Soldável",
 
+  "Corpo Caixa Seca, Esgoto - Tigre":
+    "Ralo Seco",
+
+  "Tubo PPR rígido, cor verde, classe de pressão PN 20 - Tigre":
+    "Tubo PPR PN20",
+
+  "Registro de Gaveta DocolBase - 3/4\" - Docol":
+    "Registro de gaveta com canopla",
+
+  "Base Misturador Monocomando para Chuveiro 3/4, Bases - Docol":
+    "Base Misturador Monocomando para Chuveiro"
+};
 export const ignoredMaterials = [
+  "Lavatório com cuba retangular",
+  "Pia com cuba retangular",
+  "Vaso sanitário",
+  "Ducha com misturador paralelo",
+  "Ducha com misturador de água fria",
+  "Aparelho sanitário",
+  "Louças",
+  "Torneira",
   "Torneira de Jardim - Luxo Docol"
 ];
 
@@ -163,11 +182,12 @@ export const normalizeMaterialKey = (text: string) => {
     text
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[“”]/g, "\"")
+      .replace(/[â€œâ€]/g, "\"")
       .replace(/''/g, "\"")
       .replace(/["]+/g, "\"")
-      .replace(/ø|Ø|∅|phi|diam\.?/gi, "")
+      .replace(/Ã¸|Ã˜|âˆ…|phi|diam\.?/gi, "")
       .replace(/\bpolegadas?\b/gi, "\"")
+      .replace(/[,\-–—]+/g, " ")
       .replace(/\s*mm\b/gi, " mm")
       .replace(/\s+/g, " ")
       .toLowerCase()

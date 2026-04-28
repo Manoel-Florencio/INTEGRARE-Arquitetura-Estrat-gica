@@ -155,7 +155,24 @@ const normalizeDimension = (dim: any) => {
   return str;
 };
 
-const formatDisplayDimension = (dim: any) => {
+const isTubeMillimeterDescription = (description: any) => {
+  if (!description) return false;
+
+  const desc = String(description)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+  return (
+    desc.includes("tubo pvc") ||
+    (desc.includes("tubo") && desc.includes("pvc")) ||
+    desc.includes("tubo ppr") ||
+    (desc.includes("tubo") && desc.includes("ppr"))
+  );
+};
+
+const formatDisplayDimension = (dim: any, description?: any) => {
   if (!dim) return "";
 
   const original = String(dim).trim();
@@ -180,6 +197,18 @@ const formatDisplayDimension = (dim: any) => {
     .replace(/(\d)\s*\/\s*(\d)/g, "$1/$2")
     .replace(/\s+/g, " ")
     .trim();
+
+  if (isTubeMillimeterDescription(description)) {
+    const millimeterValue = str
+      .replace(/"/g, "")
+      .replace(/\s*mm\b/gi, "")
+      .replace(/\s+/g, "")
+      .trim();
+
+    if (/^\d+$/.test(millimeterValue)) {
+      return `${millimeterValue}mm`;
+    }
+  }
 
   const looksLikeInchFraction =
     /^\d+\s+\d\/\d"?$/.test(str) ||
@@ -229,13 +258,13 @@ const getMaterialCategory = (description: string): string => {
   if (hasAll(["pvc", "marrom"]) || hasAll(["soldavel", "marrom"]) || hasAll(["pvc", "soldavel"]) || hasAny(["pvc marrom", "pvc soldavel", "linha soldavel", "cor marrom", "agua fria"])) {
     return "PVC Soldável Marrom";
   }
-  if (hasAny(["galvanizado", "docolbase", "bsp", "rosca bsp", "metal galvanizado", "base misturador", "registro de gaveta", "niple duplo"])) {
+  if (hasAny(["galvanizado", "docolbase", "bsp", "rosca bsp", "metal galvanizado", "base misturador", "registro de gaveta", "registro de pressao", "niple duplo"])) {
     return "Aço Galvanizado";
   }
   if (hasAny(["ppr", "termofusao", "pn 20", "pn20", "tubo ppr", "linha ppr", "agua quente"])) {
     return "PPR";
   }
-  if (hasAny(["esgoto sn", "serie normal", "linha esgoto sn", "caixa sifonada", "grelha quadrada", "porta grelha"])) {
+  if (hasAny(["esgoto sn", "serie normal", "linha esgoto sn", "caixa sifonada", "grelha quadrada", "porta grelha", "corpo caixa seco", "corpo caixa seca", "ralo seco"])) {
     return "PVC Série Normal";
   }
   if (hasAny(["esgoto sr", "serie reforcada", "linha esgoto sr"])) {
@@ -393,7 +422,7 @@ app.post("/api/process", upload.any(), async (req, res) => {
           rows.push({
             description: String(data.description).trim(),
             dimension: data.dimension ? String(data.dimension).trim() : "",
-            displayDimension: formatDisplayDimension(data.dimension),
+            displayDimension: formatDisplayDimension(data.dimension, data.description),
             unit: String(data.unit || "").trim(),
             quantity: qty,
             normDesc: normalizeText(data.description),
@@ -429,7 +458,7 @@ app.post("/api/process", upload.any(), async (req, res) => {
               map.set(key, {
                 description: item.normDesc,
                 displayDescription: cleanMaterialName(item.description),
-                displayDimension: item.displayDimension || formatDisplayDimension(item.dimension),
+                displayDimension: item.displayDimension || formatDisplayDimension(item.dimension, item.description),
                 dimension: item.normDim,
                 unit: item.normUnit,
                 quantity: Number(item.quantity.toFixed(2))
