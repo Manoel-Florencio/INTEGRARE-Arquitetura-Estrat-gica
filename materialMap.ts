@@ -164,6 +164,8 @@ export const ignoredMaterials = [
   "Pia com cuba retangular",
   "Tanque para lavar roupas",
   "Vaso sanitário",
+  "Geladeira duplex",
+  "Máquina de lavar e secar roupas",
   "Ducha com misturador paralelo",
   "Ducha com misturador de água fria",
   "Aparelho sanitário",

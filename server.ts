@@ -258,7 +258,7 @@ const getMaterialCategory = (description: string): string => {
   if (hasAll(["pvc", "marrom"]) || hasAll(["soldavel", "marrom"]) || hasAll(["pvc", "soldavel"]) || hasAny(["pvc marrom", "pvc soldavel", "linha soldavel", "cor marrom", "agua fria"])) {
     return "PVC Soldável Marrom";
   }
-  if (hasAny(["galvanizado", "docolbase", "bsp", "rosca bsp", "metal galvanizado", "base misturador", "registro de gaveta", "registro de pressao", "niple duplo"])) {
+  if (hasAny(["galvanizado", "docolbase", "bsp", "rosca bsp", "metal galvanizado", "base misturador", "registro de gaveta", "registro de pressao", "registro esfera", "niple duplo"])) {
     return "Aço Galvanizado";
   }
   if (hasAny(["ppr", "termofusao", "pn 20", "pn20", "tubo ppr", "linha ppr", "agua quente"])) {
