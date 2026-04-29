@@ -153,12 +153,16 @@ export const materialMap: Record<string, string> = {
   "Registro de Gaveta DocolBase - 3/4\" - Docol":
     "Registro de gaveta com canopla",
 
+    "Registro de Gaveta DocolBase - 1\" - Docol":
+    "Registro de gaveta com canopla",
+
   "Base Misturador Monocomando para Chuveiro 3/4, Bases - Docol":
     "Base Misturador Monocomando para Chuveiro"
 };
 export const ignoredMaterials = [
   "Lavatório com cuba retangular",
   "Pia com cuba retangular",
+  "Tanque para lavar roupas",
   "Vaso sanitário",
   "Ducha com misturador paralelo",
   "Ducha com misturador de água fria",
