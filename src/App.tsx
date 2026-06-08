@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   LayoutDashboard, PlusCircle, History, Settings, FileSpreadsheet, Upload, Trash2, Download, ChevronRight,
-  CheckCircle2, AlertCircle, Loader2, Search, Filter, ArrowUpDown, FileText, Layers, Save, Plus, X, ChevronDown, ChevronUp
+  CheckCircle2, AlertCircle, Loader2, Search, Filter, ArrowUpDown, FileText, Layers, Save, Plus, X, ChevronDown, ChevronUp, Copy
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -9,10 +9,38 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 // --- Types ---
 
+interface PavimentoRepeat {
+  enabled: boolean;
+  count: number;
+  startAt: number;
+}
+
 interface Pavimento {
   id: string;
   name: string;
   files: File[];
+  repeat?: PavimentoRepeat;
+}
+
+// Expande pavimentos com repeat antes do processamento
+function expandRepeatedFloors(
+  floors: Pavimento[]
+): Array<{ id: string; name: string; files: File[] }> {
+  const result: Array<{ id: string; name: string; files: File[] }> = [];
+  for (const floor of floors) {
+    if (floor.repeat?.enabled) {
+      // Garante limites seguros: mínimo 1, máximo 999
+      const count = Math.max(1, Math.min(floor.repeat.count, 999));
+      const startAt = Math.max(1, floor.repeat.startAt);
+      for (let i = 0; i < count; i++) {
+        const n = startAt + i;
+        result.push({ id: `${floor.id}_rep_${n}`, name: `${floor.name} ${n}`, files: floor.files });
+      }
+    } else {
+      result.push({ id: floor.id, name: floor.name, files: floor.files });
+    }
+  }
+  return result;
 }
 
 interface Project {
@@ -141,6 +169,29 @@ export default function App() {
     setPavimentos(pavimentos.map(p => p.id === id ? { ...p, name } : p));
   };
 
+  const toggleRepeat = (id: string) => {
+    setPavimentos(pavimentos.map(p => {
+      if (p.id !== id) return p;
+      const wasEnabled = p.repeat?.enabled ?? false;
+      return {
+        ...p,
+        repeat: {
+          enabled: !wasEnabled,
+          count: p.repeat?.count ?? 3,
+          startAt: p.repeat?.startAt ?? 1,
+        },
+      };
+    }));
+  };
+
+  const updateRepeatField = (id: string, field: keyof PavimentoRepeat, value: number | boolean) => {
+    setPavimentos(pavimentos.map(p => {
+      if (p.id !== id) return p;
+      const base: PavimentoRepeat = p.repeat ?? { enabled: false, count: 3, startAt: 1 };
+      return { ...p, repeat: { ...base, [field]: value } };
+    }));
+  };
+
   const validateFiles = (files: FileList): { valid: File[], errors: string[] } => {
     const valid: File[] = [];
     const errors: string[] = [];
@@ -228,12 +279,27 @@ export default function App() {
     if (pavimentos.some(p => !p.name.trim())) return showToast("Dê um nome para todos os pavimentos", "error");
     if (pavimentos.some(p => p.files.length === 0)) return showToast("Adicione pelo menos um arquivo em cada pavimento", "error");
 
+    // Expande pavimentos repetidos antes de enviar
+    const expandedFloors = expandRepeatedFloors(pavimentos);
+
+    // Validações extras para pavimentos com repeat
+    for (const pav of pavimentos) {
+      if (pav.repeat?.enabled) {
+        const count = pav.repeat.count;
+        const startAt = pav.repeat.startAt;
+        if (!Number.isInteger(count) || count < 1 || count > 999)
+          return showToast(`Pavimento "${pav.name}": quantidade deve ser entre 1 e 999`, "error");
+        if (!Number.isInteger(startAt) || startAt < 1)
+          return showToast(`Pavimento "${pav.name}": número inicial deve ser pelo menos 1`, "error");
+      }
+    }
+
     const formData = new FormData();
-    pavimentos.forEach(pav => {
+    expandedFloors.forEach(pav => {
       pav.files.forEach(file => formData.append(`files_${pav.id}`, file));
     });
     formData.append('mode', currentProject.unification_mode || 'global');
-    formData.append('pavimentosMetadata', JSON.stringify(pavimentos.map(p => ({ id: p.id, name: p.name }))));
+    formData.append('pavimentosMetadata', JSON.stringify(expandedFloors.map(p => ({ id: p.id, name: p.name }))));
 
     console.log("Sending process request...", {
       mode: currentProject.unification_mode,
@@ -556,42 +622,174 @@ export default function App() {
                     <button onClick={addPavimento} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-lg text-sm font-bold"><Plus size={18} /> Adicionar Pavimento</button>
                   </div>
                   <div className="space-y-4">
-                    {pavimentos.map((pav, pIdx) => (
-                      <div key={pav.id} className="border border-white/10 rounded-xl overflow-hidden bg-white/5">
-                        <div className="p-4 flex items-center gap-4 border-b border-white/5">
-                          <button onClick={() => setExpandedPavs({ ...expandedPavs, [pav.id]: !expandedPavs[pav.id] })} className="text-secondary">{expandedPavs[pav.id] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}</button>
-                          <input type="text" className="bg-transparent border-none focus:ring-0 font-bold flex-1" placeholder="Nome do Pavimento (ex: Térreo)" value={pav.name} onChange={e => updatePavimentoName(pav.id, e.target.value)} />
-                          <span className="text-xs text-secondary font-mono">{pav.files.length} arquivos</span>
-                          <button onClick={() => removePavimento(pav.id)} className="text-rose-400 hover:text-rose-300"><Trash2 size={18} /></button>
-                        </div>
-                        <AnimatePresence>
-                          {expandedPavs[pav.id] && (
-                            <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden">
-                              <div className="p-4 space-y-4">
-                                <div className="grid grid-cols-1 gap-2">
-                                  {pav.files.map((f, fIdx) => (
-                                    <div key={fIdx} className="flex items-center justify-between p-2 bg-black/20 rounded-lg text-sm">
-                                      <div className="flex items-center gap-2"><FileSpreadsheet size={16} className="text-emerald-500" /> <span>{f.name}</span></div>
-                                      <button onClick={() => removeFile(pav.id, fIdx)} className="text-rose-400"><X size={14} /></button>
-                                    </div>
-                                  ))}
-                                </div>
+                    {pavimentos.map((pav) => {
+                      const repeatEnabled = pav.repeat?.enabled ?? false;
+                      const repeatCount  = pav.repeat?.count   ?? 3;
+                      const repeatStart  = pav.repeat?.startAt ?? 1;
+                      const previewNames = repeatEnabled
+                        ? Array.from({ length: Math.min(repeatCount, 10) }, (_, i) => `${pav.name} ${repeatStart + i}`)
+                        : [];
+
+                      return (
+                        <div
+                          key={pav.id}
+                          className="rounded-xl overflow-hidden"
+                          style={{
+                            border: repeatEnabled ? "1px solid rgba(99,102,241,0.45)" : "1px solid rgba(255,255,255,0.1)",
+                            backgroundColor: "rgba(255,255,255,0.03)",
+                          }}
+                        >
+                          {/* Cabeçalho do card */}
+                          <div className="p-4 flex items-center gap-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                            <button
+                              onClick={() => setExpandedPavs({ ...expandedPavs, [pav.id]: !expandedPavs[pav.id] })}
+                              className="text-secondary flex-shrink-0"
+                            >
+                              {expandedPavs[pav.id] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                            </button>
+
+                            <input
+                              type="text"
+                              className="bg-transparent border-none focus:ring-0 font-bold flex-1 min-w-0"
+                              placeholder={repeatEnabled ? "Nome base (ex: Tipo)" : "Nome do Pavimento (ex: Térreo)"}
+                              value={pav.name}
+                              onChange={e => updatePavimentoName(pav.id, e.target.value)}
+                            />
+
+                            {repeatEnabled && (
+                              <span
+                                className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: "rgba(99,102,241,0.2)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.35)" }}
+                              >
+                                ×{repeatCount}
+                              </span>
+                            )}
+
+                            <span className="text-xs text-secondary font-mono flex-shrink-0">
+                              {pav.files.length} {pav.files.length === 1 ? "arquivo" : "arquivos"}
+                            </span>
+
+                            {/* Botão Multiplicar */}
+                            <button
+                              onClick={() => toggleRepeat(pav.id)}
+                              title={repeatEnabled ? "Desativar repetição" : "Multiplicar pavimento"}
+                              className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all"
+                              style={{
+                                backgroundColor: repeatEnabled ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.06)",
+                                border: repeatEnabled ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(255,255,255,0.12)",
+                                color: repeatEnabled ? "#818cf8" : "var(--text-secondary)",
+                              }}
+                            >
+                              <Copy size={13} />
+                              <span>{repeatEnabled ? "Repetindo" : "Multiplicar"}</span>
+                            </button>
+
+                            <button
+                              onClick={() => removePavimento(pav.id)}
+                              className="text-rose-400 hover:text-rose-300 flex-shrink-0"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+
+                          {/* Painel de configuração de repetição */}
+                          <AnimatePresence>
+                            {repeatEnabled && (
+                              <motion.div
+                                key={`repeat-panel-${pav.id}`}
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
                                 <div
-                                  onClick={() => document.getElementById(`file-${pav.id}`)?.click()}
-                                  onDrop={(e) => handleDrop(pav.id, e)}
-                                  onDragOver={handleDragOver}
-                                  className="border-2 border-dashed border-white/10 rounded-xl p-6 flex flex-col items-center justify-center gap-2 hover:border-indigo-500/50 hover:bg-white/5 cursor-pointer transition-all"
+                                  className="px-4 py-3 space-y-3"
+                                  style={{
+                                    backgroundColor: "rgba(99,102,241,0.05)",
+                                    borderBottom: "1px solid rgba(99,102,241,0.15)",
+                                  }}
                                 >
-                                  <input type="file" id={`file-${pav.id}`} className="hidden" multiple accept=".csv" onChange={e => handleFileAdd(pav.id, e.target.files)} />
-                                  <Upload className="text-secondary" size={24} />
-                                  <p className="text-[10px] uppercase font-bold text-secondary">Arraste arquivos CSV ou clique para selecionar</p>
+                                  <p className="text-[10px] font-bold uppercase" style={{ color: "#818cf8", letterSpacing: "0.15em" }}>
+                                    Configuração de Repetição
+                                  </p>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-[10px] font-semibold text-secondary uppercase block mb-1">Quantidade (Máx: 999)</label>
+                                      <input
+                                        type="number" min={1} max={999}
+                                        className="input-field w-full text-sm"
+                                        style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", padding: "5px 10px" }}
+                                        value={repeatCount}
+                                        onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1 && v <= 999) updateRepeatField(pav.id, "count", v); }}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-semibold text-secondary uppercase block mb-1">Número inicial</label>
+                                      <input
+                                        type="number" min={1}
+                                        className="input-field w-full text-sm"
+                                        style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", padding: "5px 10px" }}
+                                        value={repeatStart}
+                                        onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1) updateRepeatField(pav.id, "startAt", v); }}
+                                      />
+                                    </div>
+                                  </div>
+                                  {/* Prévia dos nomes */}
+                                  <div className="rounded-lg p-2" style={{ backgroundColor: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                                    <p className="text-[10px] font-bold text-secondary uppercase mb-1" style={{ letterSpacing: "0.1em" }}>Prévia</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {pav.name.trim() === "" ? (
+                                        <span className="text-xs text-rose-400">Preencha o nome base acima</span>
+                                      ) : (
+                                        <>
+                                          {previewNames.map((n, i) => (
+                                            <span key={i} className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: "rgba(99,102,241,0.2)", color: "#a5b4fc" }}>{n}</span>
+                                          ))}
+                                          {repeatCount > 10 && (
+                                            <span className="text-xs text-secondary px-2 py-0.5 rounded" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>+{repeatCount - 10} mais</span>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          {/* Seção de arquivos (expansível) */}
+                          <AnimatePresence>
+                            {expandedPavs[pav.id] && (
+                              <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden">
+                                <div className="p-4 space-y-4">
+                                  <div className="grid grid-cols-1 gap-2">
+                                    {pav.files.map((f, fIdx) => (
+                                      <div key={fIdx} className="flex items-center justify-between p-2 bg-black/20 rounded-lg text-sm">
+                                        <div className="flex items-center gap-2"><FileSpreadsheet size={16} className="text-emerald-500" /> <span>{f.name}</span></div>
+                                        <button onClick={() => removeFile(pav.id, fIdx)} className="text-rose-400"><X size={14} /></button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div
+                                    onClick={() => document.getElementById(`file-${pav.id}`)?.click()}
+                                    onDrop={(e) => handleDrop(pav.id, e)}
+                                    onDragOver={handleDragOver}
+                                    className="border-2 border-dashed border-white/10 rounded-xl p-6 flex flex-col items-center justify-center gap-2 hover:border-indigo-500/50 hover:bg-white/5 cursor-pointer transition-all"
+                                  >
+                                    <input type="file" id={`file-${pav.id}`} className="hidden" multiple accept=".csv" onChange={e => handleFileAdd(pav.id, e.target.files)} />
+                                    <Upload className="text-secondary" size={24} />
+                                    <p className="text-[10px] uppercase font-bold text-secondary">Arraste arquivos CSV ou clique para selecionar</p>
+                                    {repeatEnabled && (
+                                      <p className="text-[10px] text-indigo-400">Estes arquivos serão usados nos {repeatCount} pavimentos gerados</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
                   </div>
                 </section>
 
