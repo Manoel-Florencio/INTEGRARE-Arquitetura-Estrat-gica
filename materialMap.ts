@@ -89,6 +89,9 @@ export const materialMap: Record<string, string> = {
   "Tubo PVC rígido, cor marrom, linha soldável - Tigre":
     "Tubo PVC soldável marrom",
 
+  "Tê de Redução Externa e Central, PPR Termofusão - Tigre":
+    "Tê Normal",
+
   // Mapeamento da planilha "antes e depois - Conexões - 24.04.csv"
   "Elemento Filtrante VRP Premium Ø2\"":
     "Elemento Filtrante VRP Premium",
@@ -153,7 +156,7 @@ export const materialMap: Record<string, string> = {
   "Registro de Gaveta DocolBase - 3/4\" - Docol":
     "Registro de gaveta com canopla",
 
-    "Registro de Gaveta DocolBase - 1\" - Docol":
+  "Registro de Gaveta DocolBase - 1\" - Docol":
     "Registro de gaveta com canopla",
 
   "Base Misturador Monocomando para Chuveiro 3/4, Bases - Docol":
